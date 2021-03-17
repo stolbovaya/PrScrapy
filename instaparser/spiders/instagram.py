@@ -14,7 +14,7 @@ class InstagramSpider(scrapy.Spider):
     allowed_domains = ['instagram.com']
     start_urls = ['https://instagram.com/']
     insta_login = 'kasws3'
-    insta_pwd = '#PWD_INSTAGRAM_BROWSER:10:1615833714:AfhQAHpgyScVPcb7P/OWFtgsB3vtW1k0oAZDjeDBPbZIN6VmiPfH48YprZJPiIOKDUe6b9XpG12o43wIAVkS+Om/bn2mZllbObbRXJeNH0XZB5/Z5o/3qk9dz8HrX02RwDhMrPUxq91qZc2XOA=='
+    insta_pwd = '#PWD_INSTAGRAM_BROWSER'
     inst_login_link = 'https://www.instagram.com/accounts/login/ajax/'
     parse_user = 'fushik1'  # ,'3dprintus']      #Пользователь, у которого собираем посты. Можно указать список
 
