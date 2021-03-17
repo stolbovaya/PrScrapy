@@ -39,17 +39,17 @@ class InstagramSpider(scrapy.Spider):
 
         if j_body['authenticated']:  # Проверяем ответ после авторизации
             # for parse_user in self.parse_users:
-            # yield response.follow(
-            #     # Переходим на желаемую страницу пользователя. Сделать цикл для кол-ва пользователей больше 2-ух
-            #     f'/{self.parse_user}',
-            #     callback=self.user_data_parse,
-            #     cb_kwargs={'username': self.parse_user})
+            yield response.follow(
+                # Переходим на желаемую страницу пользователя. Сделать цикл для кол-ва пользователей больше 2-ух
+                f'/{self.parse_user}',
+                callback=self.user_data_parse,
+                cb_kwargs={'username': self.parse_user})
 
-            # yield response.follow(
-            #     # Переходим на желаемую страницу пользователя. Сделать цикл для кол-ва пользователей больше 2-ух
-            #     f'/{self.parse_user}',
-            #     callback=self.followers_data_parse,
-            #     cb_kwargs={'username': self.parse_user})
+            yield response.follow(
+                # Переходим на желаемую страницу пользователя. Сделать цикл для кол-ва пользователей больше 2-ух
+                f'/{self.parse_user}',
+                callback=self.followers_data_parse,
+                cb_kwargs={'username': self.parse_user})
 
             yield response.follow(
                 # Переходим на желаемую страницу пользователя. Сделать цикл для кол-ва пользователей больше 2-ух
@@ -99,6 +99,16 @@ class InstagramSpider(scrapy.Spider):
     def user_posts_parse(self, response: HtmlResponse, username, user_id,
                          variables):  # Принимаем ответ. Не забываем про параметры от cb_kwargs
         j_data = json.loads(response.text)
+        posts = j_data.get('data').get('user').get('edge_owner_to_timeline_media').get('edges')  # Сами посты
+        for post in posts:  # Перебираем посты, собираем данные
+            item = InstaparserItem(
+                user_id=user_id,
+                photo=post['node']['display_url'],
+                likes=post['node']['edge_media_preview_like']['count'],
+                post=post['node']
+            )
+            yield item  # В пайплайн
+
         page_info = j_data.get('data').get('user').get('edge_owner_to_timeline_media').get('page_info')
         if page_info.get('has_next_page'):  # Если есть следующая страница
             variables['after'] = page_info['end_cursor']  # Новый параметр для перехода на след. страницу
@@ -110,19 +120,23 @@ class InstagramSpider(scrapy.Spider):
                            'user_id': user_id,
                            'variables': deepcopy(variables)}
             )
-        posts = j_data.get('data').get('user').get('edge_owner_to_timeline_media').get('edges')  # Сами посты
-        for post in posts:  # Перебираем посты, собираем данные
-            item = InstaparserItem(
-                user_id=user_id,
-                photo=post['node']['display_url'],
-                likes=post['node']['edge_media_preview_like']['count'],
-                post=post['node']
-            )
-        yield item  # В пайплайн
+
+
 
     def followers_posts_parse(self, response: HtmlResponse, username, user_id,
                               variables):  # Принимаем ответ. Не забываем про параметры от cb_kwargs
         j_data = json.loads(response.text)
+        posts = j_data.get('data').get('user').get('edge_followed_by').get('edges')  # Сами посты
+        for post in posts:  # Перебираем посты, собираем данные
+            item = InstaparserItemFollowers(
+                _id=post['node']['id'],
+                user_to=user_id,
+                username=post['node']['username'],
+                url=post['node']['profile_pic_url'],
+                full_name=post['node']['full_name']
+
+            )
+            yield item  # В пайплайн
 
         page_info = j_data.get('data').get('user').get('edge_followed_by').get('page_info')
         if page_info.get('has_next_page'):  # Если есть следующая страница
@@ -135,21 +149,22 @@ class InstagramSpider(scrapy.Spider):
                            'user_id': user_id,
                            'variables': deepcopy(variables)}
             )
-        posts = j_data.get('data').get('user').get('edge_followed_by').get('edges')  # Сами посты
-        for post in posts:  # Перебираем посты, собираем данные
-            item = InstaparserItemFollowers(
-                _id=post['node']['id'],
-                user_to=user_id,
-                username=post['node']['username'],
-                url=post['node']['profile_pic_url'],
-                full_name=post['node']['full_name']
 
-            )
-        yield item  # В пайплайн
+
 
     def following_posts_parse(self, response: HtmlResponse, username, user_id,
                               variables):  # Принимаем ответ. Не забываем про параметры от cb_kwargs
         j_data = json.loads(response.text)
+        posts = j_data.get('data').get('user').get('edge_follow').get('edges')  # Сами посты
+        for post in posts:  # Перебираем посты, собираем данные
+            item = InstaparserItemFollowing(
+                _id=post['node']['id'],
+                user_from=user_id,
+                username=post['node']['username'],
+                url=post['node']['profile_pic_url'],
+                full_name=post['node']['full_name']
+            )
+            yield item
         page_info = j_data.get('data').get('user').get('edge_follow').get('page_info')
         if page_info.get('has_next_page'):  # Если есть следующая страница
             variables['after'] = page_info['end_cursor']  # Новый параметр для перехода на след. страницу
@@ -161,16 +176,8 @@ class InstagramSpider(scrapy.Spider):
                            'user_id': user_id,
                            'variables': deepcopy(variables)}
             )
-        posts = j_data.get('data').get('user').get('edge_follow').get('edges')  # Сами посты
-        for post in posts:  # Перебираем посты, собираем данные
-            item = InstaparserItemFollowing(
-                _id=post['node']['id'],
-                user_from=user_id,
-                username=post['node']['username'],
-                url=post['node']['profile_pic_url'],
-                full_name=post['node']['full_name']
-            )
-        yield item  # В пайплайн
+
+
 
     # Получаем токен для авторизации
     def fetch_csrf_token(self, text):
