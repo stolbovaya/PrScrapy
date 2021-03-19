@@ -16,7 +16,7 @@ class InstagramSpider(scrapy.Spider):
     insta_login = 'kasws3'
     insta_pwd = '#PWD_INSTAGRAM_BROWSER:10:1615833714:AfhQAHpgyScVPcb7P/OWFtgsB3vtW1k0oAZDjeDBPbZIN6VmiPfH48YprZJPiIOKDUe6b9XpG12o43wIAVkS+Om/bn2mZllbObbRXJeNH0XZB5/Z5o/3qk9dz8HrX02RwDhMrPUxq91qZc2XOA=='
     inst_login_link = 'https://www.instagram.com/accounts/login/ajax/'
-    parse_users = ['fushik1','3dprintus']      #Пользователь, у которого собираем посты. Можно указать список
+    parse_users = ['fushik1','3dprintus','oksuta_tort']      #Пользователь, у которого собираем посты. Можно указать список
 
     graphql_url = 'https://www.instagram.com/graphql/query/?'
 
@@ -190,23 +190,23 @@ class InstagramSpider(scrapy.Spider):
 
     # Получаем full_name желаемого пользователя
     def fetch_full_name(self, text, username):
-        # try:
-        #     matched = re.search(
-        #         '{\"id\":\"\\d+\",\"username\":\"%s\"}' % username, text
-        #     ).group()
-        #     full_name = json.loads(matched).get('full_name')
-        # except Exception as e:
-        #     full_name = ''
-        #     print(e)
-        return 'full_name'
+        try:
+            matched = re.search(
+                '{\"id\":\"\\d+\",\"full_name\":\"%s\"}' % username, text
+            ).group()
+            full_name = json.loads(matched).get('full_name')
+        except Exception as e:
+            full_name = ''
+            print(e)
+        return full_name
 
     def fetch_profile_pic_url(self, text, username):
-        # try:
-        #     matched = re.search(
-        #         '{\"id\":\"\\d+\",\"username\":\"%s\"}' % username, text
-        #     ).group()
-        #     full_name = json.loads(matched).get('full_name')
-        # except Exception as e:
-        #     full_name = ''
-        #     print(e)
-        return 'profile_pic_url'
+        try:
+            matched = re.search(
+                '{\"id\":\"\\d+\",\"profile_pic_url\":\"%s\"}' % username, text
+            ).group()
+            profile_pic_url = json.loads(matched).get('full_name')
+        except Exception as e:
+            profile_pic_url = ''
+            print(e)
+        return profile_pic_url
