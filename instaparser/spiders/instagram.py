@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import scrapy
 from scrapy.http import HtmlResponse
-from instaparser.items import InstaparserItem, InstaparserItemFollowers, InstaparserItemFollowing
+from instaparser.items import InstaparserItemLinks, InstaparserItemUsers, InstaparserItemPosts
 import re
 import json
 from urllib.parse import urlencode
@@ -50,6 +50,14 @@ class InstagramSpider(scrapy.Spider):
         user_id = self.fetch_user_id(response.text, username)  # Получаем id пользователя
         variables = {'id': user_id,  # Формируем словарь для передачи даных в запрос
                      'first': 12}  # 12 постов. Можно больше (макс. 50)
+        item = InstaparserItemUsers(
+            _id=user_id,
+            username=username,
+            url=response.url,
+            full_name=self.fetch_full_name(response.text, username))
+
+        yield item
+
         url_posts = f'{self.graphql_url}query_hash={self.posts_hash}&{urlencode(variables)}'  # Формируем ссылку для получения данных о постах
         yield response.follow(
             url_posts,
@@ -82,13 +90,15 @@ class InstagramSpider(scrapy.Spider):
         j_data = json.loads(response.text)
         posts = j_data.get('data').get('user').get('edge_owner_to_timeline_media').get('edges')  # Сами посты
         for post in posts:  # Перебираем посты, собираем данные
-            item = InstaparserItem(
+            item = InstaparserItemPosts(
                 user_id=user_id,
                 photo=post['node']['display_url'],
                 likes=post['node']['edge_media_preview_like']['count'],
                 post=post['node']
             )
             yield item  # В пайплайн
+
+
 
         page_info = j_data.get('data').get('user').get('edge_owner_to_timeline_media').get('page_info')
         if page_info.get('has_next_page'):  # Если есть следующая страница
@@ -106,16 +116,19 @@ class InstagramSpider(scrapy.Spider):
                               variables):  # Принимаем ответ. Не забываем про параметры от cb_kwargs
         j_data = json.loads(response.text)
         posts = j_data.get('data').get('user').get('edge_followed_by').get('edges')  # Сами посты
-        for post in posts:  # Перебираем посты, собираем данные
-            item = InstaparserItemFollowers(
+        for post in posts:  # Перебираем подписчиков, собираем данные
+            item = InstaparserItemLinks(
+                user_from=post['node']['id'],
+                user_to=user_id)
+            yield item
+
+            item = InstaparserItemUsers(
                 _id=post['node']['id'],
-                user_to=user_id,
                 username=post['node']['username'],
                 url=post['node']['profile_pic_url'],
-                full_name=post['node']['full_name']
+                full_name=post['node']['full_name'])
+            yield item
 
-            )
-            yield item  # В пайплайн
         page_info = j_data.get('data').get('user').get('edge_followed_by').get('page_info')
         if page_info.get('has_next_page'):  # Если есть следующая страница
             variables['after'] = page_info['end_cursor']  # Новый параметр для перехода на след. страницу
@@ -132,15 +145,20 @@ class InstagramSpider(scrapy.Spider):
                               variables):  # Принимаем ответ. Не забываем про параметры от cb_kwargs
         j_data = json.loads(response.text)
         posts = j_data.get('data').get('user').get('edge_follow').get('edges')  # Сами посты
-        for post in posts:  # Перебираем посты, собираем данные
-            item = InstaparserItemFollowing(
+        for post in posts:  # Перебираем подписки, собираем данные
+
+            item = InstaparserItemLinks(
+                user_to=post['node']['id'],
+                user_from=user_id)
+            yield item
+
+            item = InstaparserItemUsers(
                 _id=post['node']['id'],
-                user_from=user_id,
                 username=post['node']['username'],
                 url=post['node']['profile_pic_url'],
-                full_name=post['node']['full_name']
-            )
+                full_name=post['node']['full_name'])
             yield item
+
         page_info = j_data.get('data').get('user').get('edge_follow').get('page_info')
         if page_info.get('has_next_page'):  # Если есть следующая страница
             variables['after'] = page_info['end_cursor']  # Новый параметр для перехода на след. страницу
@@ -169,3 +187,15 @@ class InstagramSpider(scrapy.Spider):
             id = '0'
             print(e)
         return id
+
+    # Получаем full_name желаемого пользователя
+    def fetch_full_name(self, text, username):
+        # try:
+        #     matched = re.search(
+        #         '{\"id\":\"\\d+\",\"username\":\"%s\"}' % username, text
+        #     ).group()
+        #     full_name = json.loads(matched).get('full_name')
+        # except Exception as e:
+        #     full_name = ''
+        #     print(e)
+        return 'full_name'

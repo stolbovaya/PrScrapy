@@ -8,7 +8,7 @@
 import scrapy
 
 
-class InstaparserItem(scrapy.Item):
+class InstaparserItemPosts(scrapy.Item):
     # define the fields for your item here like:
     _id = scrapy.Field()
     user_id = scrapy.Field()
@@ -17,19 +17,20 @@ class InstaparserItem(scrapy.Item):
     post = scrapy.Field()
 
 
-class InstaparserItemFollowers(scrapy.Item):
+class InstaparserItemUsers(scrapy.Item):
     # define the fields for your item here like:
+    _id = scrapy.Field()
+    username = scrapy.Field()
+    url = scrapy.Field()
+    full_name = scrapy.Field()
+
+class InstaparserItemLinks(scrapy.Item):
+    # Подписки ( выборка всех user_to по user_from) и
+    # подписчики  ( выборка всех user_from по user_to)
     _id = scrapy.Field()
     user_to = scrapy.Field()
-    username = scrapy.Field()
-    url = scrapy.Field()
-    full_name = scrapy.Field()
-
-
-class InstaparserItemFollowing(scrapy.Item):
-    # define the fields for your item here like:
-    _id = scrapy.Field()
     user_from = scrapy.Field()
-    username = scrapy.Field()
-    url = scrapy.Field()
-    full_name = scrapy.Field()
+
+
+
+
