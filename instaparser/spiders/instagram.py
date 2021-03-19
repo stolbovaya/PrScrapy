@@ -14,9 +14,9 @@ class InstagramSpider(scrapy.Spider):
     allowed_domains = ['instagram.com']
     start_urls = ['https://instagram.com/']
     insta_login = 'kasws3'
-    insta_pwd = ''
+    insta_pwd = '#PWD_INSTAGRAM_BROWSER:10:1615833714:AfhQAHpgyScVPcb7P/OWFtgsB3vtW1k0oAZDjeDBPbZIN6VmiPfH48YprZJPiIOKDUe6b9XpG12o43wIAVkS+Om/bn2mZllbObbRXJeNH0XZB5/Z5o/3qk9dz8HrX02RwDhMrPUxq91qZc2XOA=='
     inst_login_link = 'https://www.instagram.com/accounts/login/ajax/'
-    parse_user = 'fushik1'  # ,'3dprintus']      #Пользователь, у которого собираем посты. Можно указать список
+    parse_users = ['fushik1','3dprintus']      #Пользователь, у которого собираем посты. Можно указать список
 
     graphql_url = 'https://www.instagram.com/graphql/query/?'
 
@@ -38,13 +38,13 @@ class InstagramSpider(scrapy.Spider):
         j_body = json.loads(response.text)
 
         if j_body['authenticated']:  # Проверяем ответ после авторизации
-            # for parse_user in self.parse_users:
+            for parse_user in self.parse_users:
 
-            yield response.follow(
-                # Переходим на желаемую страницу пользователя. Сделать цикл для кол-ва пользователей больше 2-ух
-                f'/{self.parse_user}',
-                callback=self.user_data_parse,
-                cb_kwargs={'username': self.parse_user})
+                yield response.follow(
+                    # Переходим на желаемую страницу пользователя. Сделать цикл для кол-ва пользователей больше 2-ух
+                    f'/{parse_user}',
+                    callback=self.user_data_parse,
+                    cb_kwargs={'username': parse_user})
 
     def user_data_parse(self, response: HtmlResponse, username):
         user_id = self.fetch_user_id(response.text, username)  # Получаем id пользователя
@@ -53,7 +53,7 @@ class InstagramSpider(scrapy.Spider):
         item = InstaparserItemUsers(
             _id=user_id,
             username=username,
-            url=response.url,
+            profile_pic_url=self.fetch_profile_pic_url(response.text, username),
             full_name=self.fetch_full_name(response.text, username))
 
         yield item
@@ -67,19 +67,19 @@ class InstagramSpider(scrapy.Spider):
                        'variables': deepcopy(variables)}  # variables ч/з deepcopy во избежание гонок
         )
 
-        url_posts = f'{self.graphql_url}query_hash={self.following_hash}&{urlencode(variables)}'  # Формируем ссылку для получения данных о постах
+        url_links = f'{self.graphql_url}query_hash={self.following_hash}&{urlencode(variables)}'  # Формируем ссылку для получения данных о постах
         yield response.follow(
-            url_posts,
-            callback=self.following_posts_parse,
+            url_links,
+            callback=self.following_links_parse,
             cb_kwargs={'username': username,
                        'user_id': user_id,
                        'variables': deepcopy(variables)}  # variables ч/з deepcopy во избежание гонок
         )
 
-        url_posts = f'{self.graphql_url}query_hash={self.followers_hash}&{urlencode(variables)}'  # Формируем ссылку для получения данных о постах
+        url_links = f'{self.graphql_url}query_hash={self.followers_hash}&{urlencode(variables)}'  # Формируем ссылку для получения данных о постах
         yield response.follow(
-            url_posts,
-            callback=self.followers_posts_parse,
+            url_links,
+            callback=self.followers_links_parse,
             cb_kwargs={'username': username,
                        'user_id': user_id,
                        'variables': deepcopy(variables)}  # variables ч/з deepcopy во избежание гонок
@@ -112,60 +112,60 @@ class InstagramSpider(scrapy.Spider):
                            'variables': deepcopy(variables)}
             )
 
-    def followers_posts_parse(self, response: HtmlResponse, username, user_id,
+    def followers_links_parse(self, response: HtmlResponse, username, user_id,
                               variables):  # Принимаем ответ. Не забываем про параметры от cb_kwargs
         j_data = json.loads(response.text)
-        posts = j_data.get('data').get('user').get('edge_followed_by').get('edges')  # Сами посты
-        for post in posts:  # Перебираем подписчиков, собираем данные
+        links = j_data.get('data').get('user').get('edge_followed_by').get('edges')  # Сами посты
+        for link in links:  # Перебираем подписчиков, собираем данные
             item = InstaparserItemLinks(
-                user_from=post['node']['id'],
+                user_from=link['node']['id'],
                 user_to=user_id)
             yield item
 
             item = InstaparserItemUsers(
-                _id=post['node']['id'],
-                username=post['node']['username'],
-                url=post['node']['profile_pic_url'],
-                full_name=post['node']['full_name'])
+                _id=link['node']['id'],
+                username=link['node']['username'],
+                profile_pic_url=link['node']['profile_pic_url'],
+                full_name=link['node']['full_name'])
             yield item
 
         page_info = j_data.get('data').get('user').get('edge_followed_by').get('page_info')
         if page_info.get('has_next_page'):  # Если есть следующая страница
             variables['after'] = page_info['end_cursor']  # Новый параметр для перехода на след. страницу
-            url_posts = f'{self.graphql_url}query_hash={self.followers_hash}&{urlencode(variables)}'
+            url_links = f'{self.graphql_url}query_hash={self.followers_hash}&{urlencode(variables)}'
             yield response.follow(
-                url_posts,
-                callback=self.followers_posts_parse,
+                url_links,
+                callback=self.followers_links_parse,
                 cb_kwargs={'username': username,
                            'user_id': user_id,
                            'variables': deepcopy(variables)}
             )
 
-    def following_posts_parse(self, response: HtmlResponse, username, user_id,
+    def following_links_parse(self, response: HtmlResponse, username, user_id,
                               variables):  # Принимаем ответ. Не забываем про параметры от cb_kwargs
         j_data = json.loads(response.text)
-        posts = j_data.get('data').get('user').get('edge_follow').get('edges')  # Сами посты
-        for post in posts:  # Перебираем подписки, собираем данные
+        links = j_data.get('data').get('user').get('edge_follow').get('edges')  # Сами посты
+        for link in links:  # Перебираем подписки, собираем данные
 
             item = InstaparserItemLinks(
-                user_to=post['node']['id'],
+                user_to=link['node']['id'],
                 user_from=user_id)
             yield item
 
             item = InstaparserItemUsers(
-                _id=post['node']['id'],
-                username=post['node']['username'],
-                url=post['node']['profile_pic_url'],
-                full_name=post['node']['full_name'])
+                _id=link['node']['id'],
+                username=link['node']['username'],
+                profile_pic_url=link['node']['profile_pic_url'],
+                full_name=link['node']['full_name'])
             yield item
 
         page_info = j_data.get('data').get('user').get('edge_follow').get('page_info')
         if page_info.get('has_next_page'):  # Если есть следующая страница
             variables['after'] = page_info['end_cursor']  # Новый параметр для перехода на след. страницу
-            url_posts = f'{self.graphql_url}query_hash={self.following_hash}&{urlencode(variables)}'
+            url_links = f'{self.graphql_url}query_hash={self.following_hash}&{urlencode(variables)}'
             yield response.follow(
-                url_posts,
-                callback=self.following_posts_parse,
+                url_links,
+                callback=self.following_links_parse,
                 cb_kwargs={'username': username,
                            'user_id': user_id,
                            'variables': deepcopy(variables)}
@@ -199,3 +199,14 @@ class InstagramSpider(scrapy.Spider):
         #     full_name = ''
         #     print(e)
         return 'full_name'
+
+    def fetch_profile_pic_url(self, text, username):
+        # try:
+        #     matched = re.search(
+        #         '{\"id\":\"\\d+\",\"username\":\"%s\"}' % username, text
+        #     ).group()
+        #     full_name = json.loads(matched).get('full_name')
+        # except Exception as e:
+        #     full_name = ''
+        #     print(e)
+        return 'profile_pic_url'

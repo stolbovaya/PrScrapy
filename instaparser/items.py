@@ -21,7 +21,7 @@ class InstaparserItemUsers(scrapy.Item):
     # define the fields for your item here like:
     _id = scrapy.Field()
     username = scrapy.Field()
-    url = scrapy.Field()
+    profile_pic_url = scrapy.Field()
     full_name = scrapy.Field()
 
 class InstaparserItemLinks(scrapy.Item):
