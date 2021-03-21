@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import hashlib
+from base64 import b64decode
+
 import scrapy
 from scrapy.http import HtmlResponse
 from instaparser.items import InstaparserItemLinks, InstaparserItemUsers, InstaparserItemPosts
@@ -6,6 +9,7 @@ import re
 import json
 from urllib.parse import urlencode
 from copy import deepcopy
+import codecs
 
 
 class InstagramSpider(scrapy.Spider):
@@ -13,10 +17,11 @@ class InstagramSpider(scrapy.Spider):
     name = 'instagram'
     allowed_domains = ['instagram.com']
     start_urls = ['https://instagram.com/']
-    insta_login = 'kasws3'
-    insta_pwd = '#PWD_INSTAGRAM_BROWSER:10:1615833714:AfhQAHpgyScVPcb7P/OWFtgsB3vtW1k0oAZDjeDBPbZIN6VmiPfH48YprZJPiIOKDUe6b9XpG12o43wIAVkS+Om/bn2mZllbObbRXJeNH0XZB5/Z5o/3qk9dz8HrX02RwDhMrPUxq91qZc2XOA=='
+    insta_login = 'kasws2'
+    insta_pwd = '#PWD'
     inst_login_link = 'https://www.instagram.com/accounts/login/ajax/'
-    parse_users = ['fushik1','3dprintus','oksuta_tort']      #Пользователь, у которого собираем посты. Можно указать список
+    parse_users = ['oksuta_tort', 'fushik1',
+                   '3dprintus']  # Пользователь, у которого собираем посты. Можно указать список
 
     graphql_url = 'https://www.instagram.com/graphql/query/?'
 
@@ -39,7 +44,6 @@ class InstagramSpider(scrapy.Spider):
 
         if j_body['authenticated']:  # Проверяем ответ после авторизации
             for parse_user in self.parse_users:
-
                 yield response.follow(
                     # Переходим на желаемую страницу пользователя. Сделать цикл для кол-ва пользователей больше 2-ух
                     f'/{parse_user}',
@@ -90,15 +94,20 @@ class InstagramSpider(scrapy.Spider):
         j_data = json.loads(response.text)
         posts = j_data.get('data').get('user').get('edge_owner_to_timeline_media').get('edges')  # Сами посты
         for post in posts:  # Перебираем посты, собираем данные
+            try:
+                id = hashlib.sha1(post['node']['display_url'].encode('utf-8')).hexdigest()
+            except Exception as e:
+                print(e)
+                id = None
+
             item = InstaparserItemPosts(
+                _id=id,
                 user_id=user_id,
                 photo=post['node']['display_url'],
                 likes=post['node']['edge_media_preview_like']['count'],
                 post=post['node']
             )
             yield item  # В пайплайн
-
-
 
         page_info = j_data.get('data').get('user').get('edge_owner_to_timeline_media').get('page_info')
         if page_info.get('has_next_page'):  # Если есть следующая страница
@@ -184,17 +193,20 @@ class InstagramSpider(scrapy.Spider):
             ).group()
             id = json.loads(matched).get('id')
         except Exception as e:
-            id = '0'
+            id = None
             print(e)
         return id
 
     # Получаем full_name желаемого пользователя
     def fetch_full_name(self, text, username):
         try:
-            matched = re.search(
-                '{\"id\":\"\\d+\",\"full_name\":\"%s\"}' % username, text
-            ).group()
-            full_name = json.loads(matched).get('full_name')
+            matched = re.search('"follows_viewer":.+,"full_name".+","has_ar_effects"', text).group()
+
+            full_name = matched[36:-18]
+
+            full_name = full_name.replace("\\/", "/").encode().decode('unicode_escape')
+
+
         except Exception as e:
             full_name = ''
             print(e)
@@ -203,9 +215,9 @@ class InstagramSpider(scrapy.Spider):
     def fetch_profile_pic_url(self, text, username):
         try:
             matched = re.search(
-                '{\"id\":\"\\d+\",\"profile_pic_url\":\"%s\"}' % username, text
-            ).group()
-            profile_pic_url = json.loads(matched).get('full_name')
+                '},\"profile_pic_url.+?,\"profile_pic_url_hd', text).group()
+            profile_pic_url = matched[21:-21]
+            profile_pic_url = profile_pic_url.replace("\\/", "/").encode().decode('unicode_escape')
         except Exception as e:
             profile_pic_url = ''
             print(e)
